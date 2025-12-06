@@ -1,20 +1,24 @@
-import { IonContent, IonHeader, IonPage, IonTitle, IonToolbar, IonList, IonItem, IonInput, IonButton, useIonToast, IonRouterLink, IonText } from '@ionic/react';
+import { IonContent, IonHeader, IonPage, IonTitle, IonToolbar, IonList, IonItem, IonInput, IonButton, useIonToast, IonRouterLink, IonText, IonSpinner } from '@ionic/react';
 import { useState, useEffect } from 'react';
 import { useHistory } from 'react-router-dom';
 import { biometricAvailable, registerLocalBiometric, verifyLocalBiometric, biometricsEnabled } from '../lib/biometric';
 import { API_ENDPOINTS } from '../config/api';
 import { cachedFetch } from '../utils/apiCache';
 import { initializeSupabaseNotifications } from '../lib/supabaseNotifications';
+import { executeRecaptcha } from '../lib/recaptcha';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import './Login.css';
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const [isBiometricAvailable, setIsBiometricAvailable] = useState(false);
   const [showBiometricPrompt, setShowBiometricPrompt] = useState(false);
   const [showBiometricRegistrationPrompt, setShowBiometricRegistrationPrompt] = useState(false);
   const [present] = useIonToast();
   const history = useHistory();
+  const isOnline = useOnlineStatus();
 
   useEffect(() => {
     const checkBiometric = async () => {
@@ -49,13 +53,24 @@ const Login: React.FC = () => {
   };
 
   const handleLogin = async () => {
+    setIsLoading(true);
     try {
+      // Get reCAPTCHA token (only when online)
+      let recaptchaToken: string | null = null;
+      if (isOnline) {
+        recaptchaToken = await executeRecaptcha('login');
+      }
+
       const response = await cachedFetch(API_ENDPOINTS.LOGIN, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ 
+          email, 
+          password,
+          recaptchaToken, // Include reCAPTCHA token
+        }),
       });
 
       if (!response.ok) {
@@ -89,6 +104,8 @@ const Login: React.FC = () => {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error('Error en el inicio de sesión:', errorMessage);
       present({ message: errorMessage || 'No se pudo iniciar sesión.', duration: 3000, color: 'danger' });
+    } finally {
+      setIsLoading(false);
     }
   };
 

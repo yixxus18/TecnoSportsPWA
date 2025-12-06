@@ -4,6 +4,8 @@ import { IonReactRouter } from '@ionic/react-router';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import MainTabs from './components/MainTabs';
+import UpdatePrompt from './components/UpdatePrompt';
+import OfflineIndicator from './components/OfflineIndicator';
 
 /* Core CSS required for Ionic components to work properly */
 import '@ionic/react/css/core.css';
@@ -37,7 +39,7 @@ import './theme/variables.css';
 
 import React, { useEffect } from 'react';
 import { initializeSupabaseNotifications } from './lib/supabaseNotifications';
-// import { initializeOneSignal } from './lib/oneSignal';
+import { loadRecaptchaScript } from './lib/recaptcha';
 
 setupIonicReact();
 
@@ -49,17 +51,26 @@ const App: React.FC = () => {
         const userProfile = JSON.parse(userProfileString);
         if (userProfile && userProfile.id) {
           initializeSupabaseNotifications(userProfile.id);
-          // Initialize OneSignal for Push Notifications
-          // initializeOneSignal(String(userProfile.id));
         }
       } catch (e) {
         console.error('Error parsing user profile for notifications', e);
       }
     }
+
+    // Load reCAPTCHA script (only when online)
+    if (navigator.onLine) {
+      loadRecaptchaScript().catch(console.error);
+    }
   }, []);
 
   return (
     <IonApp>
+      {/* Offline Indicator */}
+      <OfflineIndicator />
+      
+      {/* Update Prompt for new PWA versions */}
+      <UpdatePrompt />
+      
       <IonReactRouter>
         <IonRouterOutlet>
           <Route exact path="/login">
