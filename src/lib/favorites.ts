@@ -8,8 +8,23 @@ export interface Favorite {
 }
 
 const getAuthHeaders = async () => {
+  // Try to get token from Supabase session first
   const { data: { session } } = await supabase.auth.getSession();
-  const token = session?.access_token;
+  let token = session?.access_token;
+  
+  // Fallback: get from localStorage (saved during login)
+  if (!token) {
+    const storedSession = localStorage.getItem('session');
+    if (storedSession) {
+      try {
+        const parsed = JSON.parse(storedSession);
+        token = parsed.access_token;
+      } catch (e) {
+        console.warn('Error parsing stored session:', e);
+      }
+    }
+  }
+  
   return {
     'Content-Type': 'application/json',
     'Authorization': token ? `Bearer ${token}` : '',
