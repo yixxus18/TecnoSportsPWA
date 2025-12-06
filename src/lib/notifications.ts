@@ -153,22 +153,37 @@ const sendSubscriptionToBackend = async (
   subscription: PushSubscription,
   userId: number
 ) => {
-  // ⚠️ Asegúrate de que la URL sea la de tu backend (Ej. Railway o localhost)
   const url = "https://tecnosportsadmin2-production.up.railway.app/notification-subscription/subscribe";
+
+  // Convert the subscription to the format expected by the backend
+  const subscriptionJson = subscription.toJSON();
+  
+  const payload = {
+    endpoint: subscriptionJson.endpoint,
+    keys: {
+      p256dh: subscriptionJson.keys?.p256dh,
+      auth: subscriptionJson.keys?.auth,
+    },
+    userId: userId,
+  };
+
+  console.log('Sending push subscription:', payload);
 
   const response = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      // Si usas JWT, deberías adjuntar el token de autenticación aquí
     },
-    // El objeto JSON de la suscripción contiene endpoint y keys
-    body: JSON.stringify(subscription),
+    body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Push subscription error:', errorText);
     throw new Error("Fallo al enviar la suscripción VAPID al servidor.");
   }
+  
+  return response.json();
 };
 
 
