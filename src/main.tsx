@@ -10,17 +10,17 @@ root.render(
   </React.StrictMode>
 );
 
-if ("serviceWorker" in navigator) {
-  // Asegúrate de que la ruta aquí ('/service-worker.js')
-  // apunte a la ubicación final del archivo después de la compilación.
-  window.addEventListener("load", () => {
-    navigator.serviceWorker
-      .register("/service-worker.js")
-      .then((registration) => {
-        console.log("Service Worker registrado con éxito:", registration);
-      })
-      .catch((error) => {
-        console.error("Fallo en el registro del Service Worker:", error);
-      });
-  });
-}
+// if ("serviceWorker" in navigator) {
+//   // Asegúrate de que la ruta aquí ('/service-worker.js')
+//   // apunte a la ubicación final del archivo después de la compilación.
+//   window.addEventListener("load", () => {
+//     navigator.serviceWorker
+//       .register("/service-worker.js")
+//       .then((registration) => {
+//         console.log("Service Worker registrado con éxito:", registration);
+//       })
+//       .catch((error) => {
+//         console.error("Fallo en el registro del Service Worker:", error);
+//       });
+//   });
+// }
