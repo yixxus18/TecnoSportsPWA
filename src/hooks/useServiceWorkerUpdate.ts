@@ -15,18 +15,21 @@ export const useServiceWorkerUpdate = () => {
   useEffect(() => {
     // Check if service worker is supported
     if (!('serviceWorker' in navigator)) {
+      console.log('Service Worker not supported');
       return;
     }
 
     const registerSW = async () => {
       try {
-        const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+        // Vite PWA generates sw.js by default
+        const swPath = '/sw.js';
+        const reg = await navigator.serviceWorker.register(swPath, { scope: '/' });
         setRegistration(reg);
         console.log('SW Registered:', reg);
 
         // Check for updates every 60 seconds
-        setInterval(() => {
-          reg.update();
+        const intervalId = setInterval(() => {
+          reg.update().catch(console.error);
         }, 60 * 1000);
 
         // Listen for updates
@@ -44,8 +47,12 @@ export const useServiceWorkerUpdate = () => {
             });
           }
         });
+
+        // Cleanup interval on unmount
+        return () => clearInterval(intervalId);
       } catch (error) {
-        console.error('SW registration error:', error);
+        // SW registration failed - this is ok, the app will still work
+        console.log('SW registration failed (this is normal in development):', error);
       }
     };
 

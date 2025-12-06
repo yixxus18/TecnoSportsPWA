@@ -11,9 +11,16 @@ declare global {
 }
 
 let recaptchaLoaded = false;
+let recaptchaFailed = false;
 
 export const loadRecaptchaScript = (): Promise<void> => {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
+    // If already failed, don't try again
+    if (recaptchaFailed) {
+      resolve();
+      return;
+    }
+
     if (recaptchaLoaded && window.grecaptcha) {
       resolve();
       return;
@@ -28,6 +35,16 @@ export const loadRecaptchaScript = (): Promise<void> => {
           resolve();
         }
       }, 100);
+      
+      // Timeout after 5 seconds
+      setTimeout(() => {
+        clearInterval(checkLoaded);
+        if (!window.grecaptcha) {
+          console.warn('reCAPTCHA load timeout - continuing without it');
+          recaptchaFailed = true;
+          resolve(); // Resolve anyway to not block login
+        }
+      }, 5000);
       return;
     }
 
@@ -37,14 +54,23 @@ export const loadRecaptchaScript = (): Promise<void> => {
     script.defer = true;
 
     script.onload = () => {
-      window.grecaptcha.ready(() => {
-        recaptchaLoaded = true;
+      if (window.grecaptcha) {
+        window.grecaptcha.ready(() => {
+          recaptchaLoaded = true;
+          resolve();
+        });
+      } else {
+        // grecaptcha not available even after load
+        console.warn('reCAPTCHA not available after script load');
+        recaptchaFailed = true;
         resolve();
-      });
+      }
     };
 
     script.onerror = () => {
-      reject(new Error('Failed to load reCAPTCHA script'));
+      console.warn('Failed to load reCAPTCHA script - continuing without it');
+      recaptchaFailed = true;
+      resolve(); // Resolve anyway to not block login
     };
 
     document.head.appendChild(script);
