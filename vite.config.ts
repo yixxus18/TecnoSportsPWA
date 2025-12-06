@@ -15,7 +15,7 @@ export default defineConfig({
         enabled: true,
         type: 'module',
       },
-      includeAssets: ['favicon.png', 'favicon2.png', 'favicon3.png'],
+      includeAssets: ['favicon.png', 'favicon2.png', 'favicon3.png', 'sw-push.js'],
       manifest: {
         name: 'TecnoSports PWA',
         short_name: 'TecnoSports',
@@ -63,6 +63,8 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,png,svg,ico,json}'],
         cleanupOutdatedCaches: true,
+        // Import the custom push notification handler
+        importScripts: ['/sw-push.js'],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/.*\.js$/,

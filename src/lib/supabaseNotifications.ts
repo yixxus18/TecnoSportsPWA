@@ -56,8 +56,8 @@ export const initializeSupabaseNotifications = async (userId?: number | string) 
       },
       (payload) => {
         console.log('New notification received:', payload);
-        const { title, body } = payload.new;
-        showNotification(title, body);
+        const { title, message } = payload.new;
+        showNotification(title, message);
       }
     )
     .subscribe((status) => {
