@@ -4,29 +4,34 @@ declare global {
   interface Window {
     grecaptcha: {
       ready: (callback: () => void) => void;
-      execute: (siteKey: string, options: { action: string }) => Promise<string>;
-      render: (container: string | HTMLElement, options: object) => number;
+      render: (container: string | HTMLElement, options: {
+        sitekey: string;
+        callback: (token: string) => void;
+        'expired-callback'?: () => void;
+        'error-callback'?: () => void;
+        theme?: 'light' | 'dark';
+        size?: 'normal' | 'compact';
+      }) => number;
+      reset: (widgetId?: number) => void;
+      getResponse: (widgetId?: number) => string;
     };
+    onRecaptchaLoad?: () => void;
   }
 }
 
 let recaptchaLoaded = false;
-let recaptchaFailed = false;
+let loadPromise: Promise<void> | null = null;
 
 export const loadRecaptchaScript = (): Promise<void> => {
-  return new Promise((resolve) => {
-    // If already failed, don't try again
-    if (recaptchaFailed) {
-      resolve();
-      return;
-    }
+  if (loadPromise) return loadPromise;
 
+  loadPromise = new Promise((resolve) => {
     if (recaptchaLoaded && window.grecaptcha) {
       resolve();
       return;
     }
 
-    // Check if already loading
+    // Check if script already exists
     if (document.querySelector('script[src*="recaptcha"]')) {
       const checkLoaded = setInterval(() => {
         if (window.grecaptcha) {
@@ -35,79 +40,72 @@ export const loadRecaptchaScript = (): Promise<void> => {
           resolve();
         }
       }, 100);
-      
-      // Timeout after 5 seconds
+
       setTimeout(() => {
         clearInterval(checkLoaded);
-        if (!window.grecaptcha) {
-          console.warn('reCAPTCHA load timeout - continuing without it');
-          recaptchaFailed = true;
-          resolve(); // Resolve anyway to not block login
-        }
-      }, 5000);
+        resolve();
+      }, 10000);
       return;
     }
 
+    // Set global callback
+    window.onRecaptchaLoad = () => {
+      recaptchaLoaded = true;
+      resolve();
+    };
+
     const script = document.createElement('script');
-    script.src = `https://www.google.com/recaptcha/api.js?render=${RECAPTCHA_SITE_KEY}`;
+    script.src = `https://www.google.com/recaptcha/api.js?onload=onRecaptchaLoad&render=explicit`;
     script.async = true;
     script.defer = true;
 
-    script.onload = () => {
-      if (window.grecaptcha) {
-        window.grecaptcha.ready(() => {
-          recaptchaLoaded = true;
-          resolve();
-        });
-      } else {
-        // grecaptcha not available even after load
-        console.warn('reCAPTCHA not available after script load');
-        recaptchaFailed = true;
-        resolve();
-      }
-    };
-
     script.onerror = () => {
-      console.warn('Failed to load reCAPTCHA script - continuing without it');
-      recaptchaFailed = true;
-      resolve(); // Resolve anyway to not block login
+      console.warn('Failed to load reCAPTCHA script');
+      resolve();
     };
 
     document.head.appendChild(script);
   });
+
+  return loadPromise;
 };
 
-export const executeRecaptcha = async (action: string): Promise<string | null> => {
-  try {
-    // Skip reCAPTCHA if offline
-    if (!navigator.onLine) {
-      console.log('Offline mode - skipping reCAPTCHA');
-      return null;
-    }
+export const renderRecaptcha = (
+  containerId: string,
+  onSuccess: (token: string) => void,
+  onExpired?: () => void
+): number | null => {
+  if (!window.grecaptcha) {
+    console.warn('reCAPTCHA not loaded');
+    return null;
+  }
 
-    await loadRecaptchaScript();
-    const token = await window.grecaptcha.execute(RECAPTCHA_SITE_KEY, { action });
-    return token;
+  try {
+    const widgetId = window.grecaptcha.render(containerId, {
+      sitekey: RECAPTCHA_SITE_KEY,
+      callback: onSuccess,
+      'expired-callback': onExpired,
+      theme: 'dark',
+      size: 'normal',
+    });
+    return widgetId;
   } catch (error) {
-    console.error('reCAPTCHA error:', error);
+    console.error('Error rendering reCAPTCHA:', error);
     return null;
   }
 };
 
-export const verifyRecaptchaWithBackend = async (token: string): Promise<boolean> => {
-  try {
-    const response = await fetch('https://tecnosportsadmin2-production.up.railway.app/api/recaptcha/verify', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ token }),
-    });
-
-    const data = await response.json();
-    return data.success && data.score >= 0.5;
-  } catch (error) {
-    console.error('reCAPTCHA verification error:', error);
-    return false;
+export const resetRecaptcha = (widgetId?: number): void => {
+  if (window.grecaptcha) {
+    window.grecaptcha.reset(widgetId);
   }
 };
+
+export const getRecaptchaResponse = (widgetId?: number): string => {
+  if (window.grecaptcha) {
+    return window.grecaptcha.getResponse(widgetId);
+  }
+  return '';
+};
+
+export const RECAPTCHA_SITE_KEY_EXPORT = RECAPTCHA_SITE_KEY;
