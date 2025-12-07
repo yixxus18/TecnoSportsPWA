@@ -5,6 +5,7 @@ import { biometricAvailable, registerLocalBiometric, verifyLocalBiometric, biome
 import { API_ENDPOINTS } from '../config/api';
 import { cachedFetch } from '../utils/apiCache';
 import { initializeSupabaseNotifications } from '../lib/supabaseNotifications';
+import { supabase } from '../lib/supabase';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import ReCaptcha from '../components/ReCaptcha';
 import './Login.css';
@@ -90,6 +91,15 @@ const Login: React.FC = () => {
       const data = await response.json();
       localStorage.setItem('session', JSON.stringify(data.session));
       localStorage.setItem('userProfile', JSON.stringify(data.userProfile));
+
+      // Sync the session with the local Supabase client
+      if (data.session) {
+        await supabase.auth.setSession({
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+        });
+        console.log('Supabase client session synced');
+      }
 
       console.log('Inicio de sesión exitoso:', data);
       present({ message: '¡Inicio de sesión exitoso!', duration: 2000, color: 'success' });

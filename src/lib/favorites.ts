@@ -8,21 +8,33 @@ export interface Favorite {
 }
 
 const getAuthHeaders = async () => {
-  // Try to get token from Supabase session first
-  const { data: { session } } = await supabase.auth.getSession();
-  let token = session?.access_token;
+  let token: string | undefined;
   
-  // Fallback: get from localStorage (saved during login)
-  if (!token) {
-    const storedSession = localStorage.getItem('session');
-    if (storedSession) {
-      try {
-        const parsed = JSON.parse(storedSession);
-        token = parsed.access_token;
-      } catch (e) {
-        console.warn('Error parsing stored session:', e);
-      }
+  // First try: get from localStorage (saved during login)
+  const storedSession = localStorage.getItem('session');
+  if (storedSession) {
+    try {
+      const parsed = JSON.parse(storedSession);
+      token = parsed.access_token;
+      console.log('[Favorites] Token from localStorage:', token ? 'Found' : 'Not found');
+    } catch (e) {
+      console.warn('[Favorites] Error parsing stored session:', e);
     }
+  }
+  
+  // Fallback: Try Supabase session (may not work if login was via backend)
+  if (!token) {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      token = session?.access_token;
+      console.log('[Favorites] Token from Supabase:', token ? 'Found' : 'Not found');
+    } catch (e) {
+      console.warn('[Favorites] Error getting Supabase session:', e);
+    }
+  }
+  
+  if (!token) {
+    console.error('[Favorites] No authentication token available!');
   }
   
   return {
