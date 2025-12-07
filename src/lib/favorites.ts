@@ -10,26 +10,39 @@ export interface Favorite {
 const getAuthHeaders = async () => {
   let token: string | undefined;
   
-  // First try: get from localStorage (saved during login)
-  const storedSession = localStorage.getItem('session');
-  if (storedSession) {
-    try {
-      const parsed = JSON.parse(storedSession);
-      token = parsed.access_token;
-      console.log('[Favorites] Token from localStorage:', token ? 'Found' : 'Not found');
-    } catch (e) {
-      console.warn('[Favorites] Error parsing stored session:', e);
+  // First try: get fresh session from Supabase (handles token refresh)
+  try {
+    const { data: { session }, error } = await supabase.auth.getSession();
+    if (session && !error) {
+      token = session.access_token;
+      console.log('[Favorites] Token from Supabase session:', token ? 'Found' : 'Not found');
+      
+      // Update localStorage with fresh token
+      localStorage.setItem('session', JSON.stringify(session));
     }
+  } catch (e) {
+    console.warn('[Favorites] Error getting Supabase session:', e);
   }
   
-  // Fallback: Try Supabase session (may not work if login was via backend)
+  // Fallback: get from localStorage if Supabase client doesn't have session
   if (!token) {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      token = session?.access_token;
-      console.log('[Favorites] Token from Supabase:', token ? 'Found' : 'Not found');
-    } catch (e) {
-      console.warn('[Favorites] Error getting Supabase session:', e);
+    const storedSession = localStorage.getItem('session');
+    if (storedSession) {
+      try {
+        const parsed = JSON.parse(storedSession);
+        token = parsed.access_token;
+        console.log('[Favorites] Token from localStorage:', token ? 'Found' : 'Not found');
+        
+        // Try to restore session in Supabase client
+        if (parsed.access_token && parsed.refresh_token) {
+          await supabase.auth.setSession({
+            access_token: parsed.access_token,
+            refresh_token: parsed.refresh_token,
+          });
+        }
+      } catch (e) {
+        console.warn('[Favorites] Error parsing stored session:', e);
+      }
     }
   }
   
