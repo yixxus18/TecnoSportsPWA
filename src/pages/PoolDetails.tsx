@@ -120,7 +120,7 @@ const PoolDetails: React.FC<RouteComponentProps<RouteParams>> = ({ match }) => {
 
       if (isCreatorCheck) {
         setView('participants'); // Default view for creator
-        // ✅ Verificación agregada para currentUserId
+        // Load participants for creator
         if (currentUserId) {
           const participantsEndpoint = API_ENDPOINTS.POOL_PARTICIPANTS_BY_USER(poolId, currentUserId);
           const participantsResponse = await cachedFetch(participantsEndpoint);
@@ -131,26 +131,28 @@ const PoolDetails: React.FC<RouteComponentProps<RouteParams>> = ({ match }) => {
         }
       } else {
         setView('predictions'); // Default view for participant
-        const matchesEndpoint = API_ENDPOINTS.MATCHES;
-        const matchesResponse = await cachedFetch(matchesEndpoint);
-        if (matchesResponse.ok) {
-          const matchesData = await matchesResponse.json();
-          setMatches((matchesData.data || []).filter((match: Match) => match.status !== 'finished'));
-        }
+      }
 
-        if (currentUserId) { // Ensure we have a user id
-            const predictionsEndpoint = API_ENDPOINTS.PREDICTIONS_BY_USER(currentUserId!);
-            const predictionsResponse = await cachedFetch(predictionsEndpoint);
-            if (predictionsResponse.ok) {
-              const predictionsData = await predictionsResponse.json();
-              if (Array.isArray(predictionsData.data)) {
-                // Filter all user predictions to get only the ones for the current pool
-                setUserPredictions(predictionsData.data.filter((p: Prediction) => p.poolId === poolId));
-              } else {
-                console.warn('Predictions data is not an array:', predictionsData);
-                setUserPredictions([]);
-              }
-            }
+      // Load matches and predictions for EVERYONE (creator and participants)
+      const matchesEndpoint = API_ENDPOINTS.MATCHES;
+      const matchesResponse = await cachedFetch(matchesEndpoint);
+      if (matchesResponse.ok) {
+        const matchesData = await matchesResponse.json();
+        setMatches((matchesData.data || []).filter((match: Match) => match.status !== 'finished'));
+      }
+
+      if (currentUserId) {
+        const predictionsEndpoint = API_ENDPOINTS.PREDICTIONS_BY_USER(currentUserId!);
+        const predictionsResponse = await cachedFetch(predictionsEndpoint);
+        if (predictionsResponse.ok) {
+          const predictionsData = await predictionsResponse.json();
+          if (Array.isArray(predictionsData.data)) {
+            // Filter all user predictions to get only the ones for the current pool
+            setUserPredictions(predictionsData.data.filter((p: Prediction) => p.poolId === poolId));
+          } else {
+            console.warn('Predictions data is not an array:', predictionsData);
+            setUserPredictions([]);
+          }
         }
       }
     } catch (err) {
@@ -249,6 +251,7 @@ const PoolDetails: React.FC<RouteComponentProps<RouteParams>> = ({ match }) => {
           <>
             <IonSegment value={view} onIonChange={e => setView(String(e.detail.value))}>
               <IonSegmentButton value="participants"><IonLabel>Participantes</IonLabel></IonSegmentButton>
+              <IonSegmentButton value="predictions"><IonLabel>Predecir</IonLabel></IonSegmentButton>
               <IonSegmentButton value="ranking"><IonLabel>Ranking</IonLabel></IonSegmentButton>
             </IonSegment>
 
@@ -260,6 +263,27 @@ const PoolDetails: React.FC<RouteComponentProps<RouteParams>> = ({ match }) => {
               <IonList>
                 <IonListHeader><IonTitle>Participantes ({participants.length})</IonTitle></IonListHeader>
                 {participants.map((p) => (<IonItem key={p.id}><IonLabel><h3>{p.name}</h3><p>Unido: {new Date(p.registeredAt).toLocaleDateString()}</p></IonLabel></IonItem>))}
+              </IonList>
+            )}
+
+            {view === 'predictions' && (
+              <IonList>
+                {matches.map((match) => {
+                  const prediction = getUserPredictionForMatch(match.id);
+                  return (
+                    <IonCard key={match.id}>
+                      <IonCardHeader><IonCardTitle className="ion-text-center">Equipo {match.homeTeamId} vs Equipo {match.awayTeamId}</IonCardTitle></IonCardHeader>
+                      <IonCardContent>
+                        <p className="ion-text-center">Fecha: {new Date(match.matchDate).toLocaleString()}</p>
+                        <IonSegment value={prediction?.prediction} disabled={!!prediction} onIonChange={e => !prediction && handlePrediction(match.id, e.detail.value as any)}>
+                          <IonSegmentButton value="home"><IonLabel>Local</IonLabel></IonSegmentButton>
+                          <IonSegmentButton value="draw"><IonLabel>Empate</IonLabel></IonSegmentButton>
+                          <IonSegmentButton value="away"><IonLabel>Visitante</IonLabel></IonSegmentButton>
+                        </IonSegment>
+                      </IonCardContent>
+                    </IonCard>
+                  );
+                })}
               </IonList>
             )}
 
