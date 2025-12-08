@@ -8,9 +8,11 @@ import {
   IonIcon,
   useIonViewWillEnter,
   IonText,
+  IonRefresher,
+  IonRefresherContent,
 } from "@ionic/react";
 import { useState, useEffect } from "react";
-import { bookmark, bookmarkOutline, refreshOutline } from "ionicons/icons";
+import { bookmark, bookmarkOutline, refreshOutline, chevronDownCircleOutline } from "ionicons/icons";
 import { API_ENDPOINTS } from "../config/api";
 import { cachedFetch } from "../utils/apiCache";
 import {
@@ -98,83 +100,91 @@ const Home: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    const loadData = async () => {
+  // Función para cargar datos
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const teamsResponse = await cachedFetch(API_ENDPOINTS.TEAMS);
+      if (!teamsResponse.ok) throw new Error("Error al cargar los equipos");
+      const teamsResult = await teamsResponse.json();
+      const teamsMap = new Map<number, FetchedTeam>();
+      teamsResult.data.forEach((team: FetchedTeam) =>
+        teamsMap.set(team.id, team)
+      );
+
+      const matchesResponse = await cachedFetch(API_ENDPOINTS.MATCHES);
+      if (!matchesResponse.ok)
+        throw new Error("Error al cargar los partidos");
+      const matchesResult = await matchesResponse.json();
+      const fetchedMatches: Match[] = matchesResult.data;
+
+      const augmentedMatches: DisplayedMatch[] = fetchedMatches
+        .filter((match) => match.status !== "finished")
+        .map((match) => ({
+          ...match,
+          homeTeam: teamsMap.get(match.homeTeamId) || {
+            id: match.homeTeamId,
+            name: "Unknown Team",
+            logoUrl: DEFAULT_APP_ICON,
+          },
+          awayTeam: teamsMap.get(match.awayTeamId) || {
+            id: match.awayTeamId,
+            name: "Unknown Team",
+            logoUrl: DEFAULT_APP_ICON,
+          },
+        }));
+
+      setMatches(augmentedMatches);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Ocurrió un error desconocido";
+      present({ message: errorMessage, duration: 3000, color: "danger" });
+    } finally {
+      setLoading(false);
+    }
+
+    const userProfileString = localStorage.getItem("userProfile");
+    let userId: number | undefined;
+    if (userProfileString) {
       try {
-        setLoading(true);
-        const teamsResponse = await cachedFetch(API_ENDPOINTS.TEAMS);
-        if (!teamsResponse.ok) throw new Error("Error al cargar los equipos");
-        const teamsResult = await teamsResponse.json();
-        const teamsMap = new Map<number, FetchedTeam>();
-        teamsResult.data.forEach((team: FetchedTeam) =>
-          teamsMap.set(team.id, team)
-        );
+        const userProfile = JSON.parse(userProfileString);
+        userId = userProfile.id;
+      } catch (e) {
+        console.error("Error parsing user profile", e);
+      }
+    }
 
-        const matchesResponse = await cachedFetch(API_ENDPOINTS.MATCHES);
-        if (!matchesResponse.ok)
-          throw new Error("Error al cargar los partidos");
-        const matchesResult = await matchesResponse.json();
-        const fetchedMatches: Match[] = matchesResult.data;
-
-        const augmentedMatches: DisplayedMatch[] = fetchedMatches
-          .filter((match) => match.status !== "finished")
-          .map((match) => ({
-            ...match,
-            homeTeam: teamsMap.get(match.homeTeamId) || {
-              id: match.homeTeamId,
-              name: "Unknown Team",
-              logoUrl: DEFAULT_APP_ICON,
-            },
-            awayTeam: teamsMap.get(match.awayTeamId) || {
-              id: match.awayTeamId,
-              name: "Unknown Team",
-              logoUrl: DEFAULT_APP_ICON,
-            },
-          }));
-
-        setMatches(augmentedMatches);
+    if (userId) {
+      try {
+        const favorites = await getFavorites(userId);
+        const favoriteIds = favorites.map((f) => f.matchId);
+        setSavedMatchIds(favoriteIds);
+        // Sync local storage
+        localStorage.setItem(SAVED_MATCHES_KEY, JSON.stringify(favoriteIds));
       } catch (error) {
-        const errorMessage =
-          error instanceof Error
-            ? error.message
-            : "Ocurrió un error desconocido";
-        present({ message: errorMessage, duration: 3000, color: "danger" });
-      } finally {
-        setLoading(false);
-      }
-
-      const userProfileString = localStorage.getItem("userProfile");
-      let userId: number | undefined;
-      if (userProfileString) {
-        try {
-          const userProfile = JSON.parse(userProfileString);
-          userId = userProfile.id;
-        } catch (e) {
-          console.error("Error parsing user profile", e);
-        }
-      }
-
-      if (userId) {
-        try {
-          const favorites = await getFavorites(userId);
-          const favoriteIds = favorites.map((f) => f.matchId);
-          setSavedMatchIds(favoriteIds);
-          // Sync local storage
-          localStorage.setItem(SAVED_MATCHES_KEY, JSON.stringify(favoriteIds));
-        } catch (error) {
-          console.error("Error fetching favorites from Supabase:", error);
-          // Fallback to local storage
-          const saved = localStorage.getItem(SAVED_MATCHES_KEY);
-          if (saved) setSavedMatchIds(JSON.parse(saved));
-        }
-      } else {
+        console.error("Error fetching favorites from Supabase:", error);
+        // Fallback to local storage
         const saved = localStorage.getItem(SAVED_MATCHES_KEY);
         if (saved) setSavedMatchIds(JSON.parse(saved));
       }
-    };
+    } else {
+      const saved = localStorage.getItem(SAVED_MATCHES_KEY);
+      if (saved) setSavedMatchIds(JSON.parse(saved));
+    }
+  };
 
+  // Función para manejar el pull-to-refresh
+  const handleRefresh = async (event: CustomEvent) => {
+    await loadData();
+    event.detail.complete();
+    present({ message: "Partidos actualizados", duration: 1500, color: "success" });
+  };
+
+  useEffect(() => {
     loadData();
-  }, [present]);
+  }, []);
 
   useIonViewWillEnter(() => {
     const saved = localStorage.getItem(SAVED_MATCHES_KEY);
@@ -294,6 +304,15 @@ const Home: React.FC = () => {
   return (
     <IonPage>
       <IonContent fullscreen>
+        {/* Pull to Refresh */}
+        <IonRefresher slot="fixed" onIonRefresh={handleRefresh}>
+          <IonRefresherContent
+            pullingIcon={chevronDownCircleOutline}
+            pullingText="Desliza para actualizar"
+            refreshingSpinner="circles"
+            refreshingText="Actualizando..."
+          />
+        </IonRefresher>
         <div className="ion-padding">
           {/* Botón para actualizar la PWA */}
           {needRefresh && (
