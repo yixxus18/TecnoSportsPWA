@@ -10,7 +10,7 @@ import {
   IonText,
 } from "@ionic/react";
 import { useState, useEffect } from "react";
-import { bookmark, bookmarkOutline } from "ionicons/icons";
+import { bookmark, bookmarkOutline, refreshOutline } from "ionicons/icons";
 import { API_ENDPOINTS } from "../config/api";
 import { cachedFetch } from "../utils/apiCache";
 import {
@@ -21,6 +21,7 @@ import {
   subscribeToWebPush,
 } from "../lib/notifications";
 import { addFavorite, removeFavorite, getFavorites } from "../lib/favorites";
+import { useServiceWorkerUpdate } from "../hooks/useServiceWorkerUpdate";
 import "./Home.css";
 
 // Interfaces for type safety
@@ -56,6 +57,7 @@ const Home: React.FC = () => {
   const [savedMatchIds, setSavedMatchIds] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
   const [present] = useIonToast();
+  const { needRefresh, acceptUpdate } = useServiceWorkerUpdate();
 
   // Función para manejar la suscripción VAPID
   const handlePushSubscription = async () => {
@@ -293,9 +295,16 @@ const Home: React.FC = () => {
     <IonPage>
       <IonContent fullscreen>
         <div className="ion-padding">
+          {/* Botón para actualizar la PWA */}
+          {needRefresh && (
+            <IonButton expand="block" onClick={acceptUpdate} color="warning" className="ion-margin-bottom">
+              <IonIcon slot="start" icon={refreshOutline} />
+              Nueva versión disponible - Actualizar
+            </IonButton>
+          )}
           {/* Botón añadido para activar Web Push */}
           <IonButton expand="block" onClick={handlePushSubscription} color="secondary">
-            Activar Notificaciones de Fondo (VAPID)
+            Activar Notificaciones de Fondo
           </IonButton>
         </div>
         {loading ? (
