@@ -1,6 +1,6 @@
 .offline-indicator {
   position: fixed;
-  top: 20px;
+  top: 60px;
   left: 0;
   right: 0;
   z-index: 99999;
