@@ -49,6 +49,12 @@ interface Match {
   status: string;
 }
 
+interface Team {
+  id: number;
+  name: string;
+  logoUrl?: string;
+}
+
 interface Prediction {
   id: number;
   prediction: 'home' | 'away' | 'draw';
@@ -75,6 +81,7 @@ const PoolDetails: React.FC<RouteComponentProps<RouteParams>> = ({ match }) => {
   const [matches, setMatches] = useState<Match[]>([]);
   const [userPredictions, setUserPredictions] = useState<Prediction[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardPosition[]>([]);
+  const [teams, setTeams] = useState<Map<number, Team>>(new Map());
   const [view, setView] = useState(''); // Initial view state
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -131,6 +138,16 @@ const PoolDetails: React.FC<RouteComponentProps<RouteParams>> = ({ match }) => {
         }
       } else {
         setView('predictions'); // Default view for participant
+      }
+
+      // Load teams first
+      const teamsEndpoint = API_ENDPOINTS.TEAMS;
+      const teamsResponse = await cachedFetch(teamsEndpoint);
+      if (teamsResponse.ok) {
+        const teamsData = await teamsResponse.json();
+        const teamsMap = new Map<number, Team>();
+        (teamsData.data || []).forEach((team: Team) => teamsMap.set(team.id, team));
+        setTeams(teamsMap);
       }
 
       // Load matches and predictions for EVERYONE (creator and participants)
@@ -214,6 +231,8 @@ const PoolDetails: React.FC<RouteComponentProps<RouteParams>> = ({ match }) => {
 
   const getUserPredictionForMatch = (matchId: number) => userPredictions.find(p => p.matchId === matchId);
 
+  const getTeamName = (teamId: number) => teams.get(teamId)?.name || `Equipo ${teamId}`;
+
   if (loading) return <IonPage><IonContent className="ion-text-center ion-padding"><IonSpinner /></IonContent></IonPage>;
   if (error || !pool) return <IonPage><IonContent className="ion-text-center ion-padding"><IonText color="danger"><h3>Error</h3><p>{error || 'Quinela no encontrada'}</p></IonText></IonContent></IonPage>;
 
@@ -272,7 +291,7 @@ const PoolDetails: React.FC<RouteComponentProps<RouteParams>> = ({ match }) => {
                   const prediction = getUserPredictionForMatch(match.id);
                   return (
                     <IonCard key={match.id}>
-                      <IonCardHeader><IonCardTitle className="ion-text-center">Equipo {match.homeTeamId} vs Equipo {match.awayTeamId}</IonCardTitle></IonCardHeader>
+                      <IonCardHeader><IonCardTitle className="ion-text-center">{getTeamName(match.homeTeamId)} vs {getTeamName(match.awayTeamId)}</IonCardTitle></IonCardHeader>
                       <IonCardContent>
                         <p className="ion-text-center">Fecha: {new Date(match.matchDate).toLocaleString()}</p>
                         <IonSegment value={prediction?.prediction} disabled={!!prediction} onIonChange={e => !prediction && handlePrediction(match.id, e.detail.value as any)}>
@@ -306,7 +325,7 @@ const PoolDetails: React.FC<RouteComponentProps<RouteParams>> = ({ match }) => {
                   const prediction = getUserPredictionForMatch(match.id);
                   return (
                     <IonCard key={match.id}>
-                      <IonCardHeader><IonCardTitle className="ion-text-center">Equipo {match.homeTeamId} vs Equipo {match.awayTeamId}</IonCardTitle></IonCardHeader>
+                      <IonCardHeader><IonCardTitle className="ion-text-center">{getTeamName(match.homeTeamId)} vs {getTeamName(match.awayTeamId)}</IonCardTitle></IonCardHeader>
                       <IonCardContent>
                         <p className="ion-text-center">Fecha: {new Date(match.matchDate).toLocaleString()}</p>
                         <IonSegment value={prediction?.prediction} disabled={!!prediction} onIonChange={e => !prediction && handlePrediction(match.id, e.detail.value as any)}>
